@@ -49,6 +49,8 @@ npm install
 npm start
 ```
 
+> **注意**：Ink 依赖终端的 `raw mode` 来处理键盘输入。如果在非交互式环境（如某些 IDE 内置的只读终端、子进程、管道）中运行，可能会看到 `Raw mode is not supported on the current process.stdin` 的错误。请在真正的交互式终端（Windows Terminal、VS Code 集成终端、PowerShell、CMD、WSL）中运行。
+
 ### 构建
 
 ```bash
