@@ -11,9 +11,23 @@ export class TscService {
 		esModuleInterop: true,
 	};
 
+	private lastCode?: string;
+	private cachedProgram?: ts.Program;
+	private cachedOptions?: ts.CompilerOptions;
+
 	check(code: string, overrideOptions?: ts.CompilerOptions): Diagnostic[] {
 		const fileName = 'virtual:///exercise.ts';
 		const options = {...this.defaultOptions, ...overrideOptions};
+
+		if (
+			this.lastCode === code &&
+			this.cachedProgram &&
+			this.cachedOptions &&
+			JSON.stringify(this.cachedOptions) === JSON.stringify(options)
+		) {
+			const diagnostics = ts.getPreEmitDiagnostics(this.cachedProgram);
+			return diagnostics.map(d => this.friendlyDiagnostic(d));
+		}
 
 		const host = ts.createCompilerHost(options);
 		const originalGetSourceFile = host.getSourceFile.bind(host);
@@ -42,6 +56,10 @@ export class TscService {
 
 		const program = ts.createProgram([fileName], options, host);
 		const diagnostics = ts.getPreEmitDiagnostics(program);
+
+		this.lastCode = code;
+		this.cachedProgram = program;
+		this.cachedOptions = options;
 
 		return diagnostics.map(d => this.friendlyDiagnostic(d));
 	}

@@ -121,6 +121,7 @@ export interface AppState {
 	progress: UserProgress;
 	settings: AppSettings;
 	lessons: Lesson[];
+	isInitialized: boolean;
 }
 
 export type AppAction =

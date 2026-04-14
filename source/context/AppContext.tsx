@@ -6,10 +6,37 @@ import {
 	type ReactNode,
 	type Dispatch,
 } from 'react';
-import type {AppState, AppAction, Lesson, UserProgress} from '../data/types.js';
+import type {AppState, AppAction, Lesson, UserProgress, LessonStep} from '../data/types.js';
 import {loadProgress, saveProgress, createDefaultProgress} from '../services/ProgressRepo.js';
+import {CONFIG} from '../config.js';
 
-function appReducer(state: AppState, action: AppAction): AppState {
+export function getViewFromStep(step: LessonStep | undefined): AppState['currentView'] {
+	if (!step) return 'theory';
+	const validViews: AppState['currentView'][] = ['theory', 'code-demo', 'quiz', 'exercise'];
+	return validViews.includes(step.type as AppState['currentView'])
+		? (step.type as AppState['currentView'])
+		: 'theory';
+}
+
+export function createStepTransitionState(
+	state: AppState,
+	step: LessonStep | undefined,
+): Partial<AppState> {
+	return {
+		currentView: getViewFromStep(step),
+		userCode:
+			step?.type === 'exercise'
+				? step.initialCode
+				: state.userCode,
+		selectedQuizOptions: [],
+		showHint: false,
+		hintIndex: 0,
+		diagnostics: [],
+		lastResult: 'idle',
+	};
+}
+
+export function appReducer(state: AppState, action: AppAction): AppState {
 	switch (action.type) {
 		case 'INIT': {
 			const firstLessonId = action.payload.lessons[0]?.id ?? '';
@@ -24,11 +51,12 @@ function appReducer(state: AppState, action: AppAction): AppState {
 				progress,
 				currentLessonId: lessonId,
 				currentStepIndex: progress.currentStepIndex,
-				currentView: (step?.type as AppState['currentView']) || 'theory',
+				currentView: getViewFromStep(step),
 				userCode:
 					step?.type === 'exercise'
 						? step.initialCode
 						: '',
+				isInitialized: true,
 			};
 		}
 
@@ -40,16 +68,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
 				...state,
 				currentLessonId: action.payload,
 				currentStepIndex: 0,
-				currentView: (step?.type as AppState['currentView']) || 'theory',
+				...createStepTransitionState(state, step),
 				userCode:
 					step?.type === 'exercise'
 						? step.initialCode
 						: '',
-				selectedQuizOptions: [],
-				showHint: false,
-				hintIndex: 0,
-				diagnostics: [],
-				lastResult: 'idle',
 			};
 		}
 
@@ -64,16 +87,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 			return {
 				...state,
 				currentStepIndex: nextIndex,
-				currentView: (step?.type as AppState['currentView']) || state.currentView,
-				userCode:
-					step?.type === 'exercise'
-						? step.initialCode
-						: state.userCode,
-				selectedQuizOptions: [],
-				showHint: false,
-				hintIndex: 0,
-				diagnostics: [],
-				lastResult: 'idle',
+				...createStepTransitionState(state, step),
 			};
 		}
 
@@ -85,16 +99,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 			return {
 				...state,
 				currentStepIndex: prevIndex,
-				currentView: (step?.type as AppState['currentView']) || state.currentView,
-				userCode:
-					step?.type === 'exercise'
-						? step.initialCode
-						: state.userCode,
-				selectedQuizOptions: [],
-				showHint: false,
-				hintIndex: 0,
-				diagnostics: [],
-				lastResult: 'idle',
+				...createStepTransitionState(state, step),
 			};
 		}
 
@@ -130,9 +135,7 @@ function appReducer(state: AppState, action: AppAction): AppState {
 			return {...state, lastResult: action.payload};
 
 		case 'SAVE_PROGRESS': {
-			const progress = action.payload;
-			saveProgress(progress);
-			return {...state, progress};
+			return {...state, progress: action.payload};
 		}
 
 		case 'RESET_EXERCISE': {
@@ -160,7 +163,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
 					totalXp: state.progress.globalStats.totalXp + Math.round(completion.score),
 				},
 			};
-			saveProgress(progress);
 			return {...state, progress};
 		}
 
@@ -196,6 +198,7 @@ export function AppProvider({
 		progress: createDefaultProgress(lessons),
 		settings: {theme: 'default', showHintsByDefault: false},
 		lessons,
+		isInitialized: false,
 	});
 
 	useEffect(() => {
@@ -203,7 +206,23 @@ export function AppProvider({
 		dispatch({type: 'INIT', payload: {progress, lessons}});
 	}, [lessons]);
 
-	// Auto-save every 30 seconds
+	// Save progress immediately when it changes (from reducer actions)
+	useEffect(() => {
+		const progress: UserProgress = {
+			...state.progress,
+			lastAccessedAt: new Date().toISOString(),
+			currentLessonId: state.currentLessonId,
+			currentStepIndex: state.currentStepIndex,
+		};
+		saveProgress(progress);
+	}, [
+		state.progress.completedLessons,
+		state.progress.globalStats,
+		state.currentLessonId,
+		state.currentStepIndex,
+	]);
+
+	// Auto-save every 30 seconds for transient state (userCode, etc.)
 	useEffect(() => {
 		const id = setInterval(() => {
 			const progress: UserProgress = {
@@ -213,9 +232,9 @@ export function AppProvider({
 				currentStepIndex: state.currentStepIndex,
 			};
 			saveProgress(progress);
-		}, 30_000);
+		}, CONFIG.AUTO_SAVE_INTERVAL_MS);
 		return () => clearInterval(id);
-	}, [state]);
+	}, [state.currentLessonId, state.currentStepIndex, state.progress]);
 
 	return (
 		<AppContext.Provider value={{state, dispatch}}>

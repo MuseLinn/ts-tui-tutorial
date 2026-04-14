@@ -1,7 +1,8 @@
 import {TscService} from '../services/TscService.js';
+import {i18n} from '../i18n/zh-CN.js';
 import type {ExerciseStep, Diagnostic} from '../data/types.js';
 
-const tscService = new TscService();
+const defaultTscService = new TscService();
 
 export interface ExerciseResult {
 	passed: boolean;
@@ -12,6 +13,7 @@ export interface ExerciseResult {
 export function validateExercise(
 	step: ExerciseStep,
 	userCode: string,
+	tscService: TscService = defaultTscService,
 ): ExerciseResult {
 	switch (step.validationMode) {
 		case 'tsc': {
@@ -22,8 +24,8 @@ export function validateExercise(
 				diagnostics,
 				message:
 					typeErrors.length === 0
-						? '✅ 太棒了！代码没有任何类型错误。'
-						: `❌ 还有 ${typeErrors.length} 个类型错误需要修复。`,
+						? i18n.exercise.tscSuccess
+						: i18n.exercise.tscFailure(typeErrors.length),
 			};
 		}
 
@@ -37,24 +39,32 @@ export function validateExercise(
 				diagnostics: [],
 				message:
 					normalizedUser === normalizedExpected
-						? '✅ 答案完全正确！'
-						: '❌ 答案不完全匹配，请再检查一下。',
+						? i18n.exercise.exactMatchSuccess
+						: i18n.exercise.exactMatchFailure,
 			};
 		}
 
 		case 'contains': {
 			const pattern = step.containsPattern || '';
-			const regex = new RegExp(pattern);
-			return {
-				passed: regex.test(userCode),
-				diagnostics: [],
-				message: regex.test(userCode)
-					? '✅ 代码中包含了要求的模式。'
-					: '❌ 代码中缺少要求的模式，请再检查一下。',
-			};
+			try {
+				const regex = new RegExp(pattern);
+				return {
+					passed: regex.test(userCode),
+					diagnostics: [],
+					message: regex.test(userCode)
+						? i18n.exercise.containsSuccess
+						: i18n.exercise.containsFailure,
+				};
+			} catch {
+				return {
+					passed: false,
+					diagnostics: [],
+					message: i18n.exercise.containsInvalidPattern,
+				};
+			}
 		}
 
 		default:
-			return {passed: false, diagnostics: [], message: '未知的校验模式'};
+			return {passed: false, diagnostics: [], message: i18n.exercise.unknownValidationMode};
 	}
 }

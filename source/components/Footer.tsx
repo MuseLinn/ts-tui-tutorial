@@ -1,13 +1,9 @@
-
 import {Box, Text} from 'ink';
+import {i18n} from '../i18n/zh-CN.js';
 
 export default function Footer({view}: {view: string}) {
-	const hints: Record<string, string> = {
-		theory: '[←/→] 切换 | [↓/j] 下一条 | [q] 退出',
-		'code-demo': '[←/→] 切换 | [q] 退出',
-		quiz: '[↑/↓] 选择 | [Enter] 确认 | [←/→] 切换',
-		exercise: '[h] 提示 | [r] 重置 | [Enter] 提交 | [←/→] 切换',
-	};
+	const hint =
+		i18n.footer[view as keyof typeof i18n.footer] ?? i18n.footer.theory;
 
 	return (
 		<Box
@@ -20,7 +16,7 @@ export default function Footer({view}: {view: string}) {
 			borderBottom={false}
 			borderColor="gray"
 		>
-			<Text dimColor>{hints[view] ?? '[q] 退出'}</Text>
+			<Text dimColor>{hint}</Text>
 		</Box>
 	);
 }

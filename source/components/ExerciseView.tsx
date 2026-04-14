@@ -3,6 +3,7 @@ import {Box, Text, useInput} from 'ink';
 import SyntaxHighlight from 'ink-syntax-highlight';
 import {useApp} from '../context/AppContext.js';
 import {validateExercise} from '../engine/ExerciseEngine.js';
+import {i18n} from '../i18n/zh-CN.js';
 import type {ExerciseStep, Diagnostic} from '../data/types.js';
 import CodeEditor from './CodeEditor.js';
 
@@ -71,7 +72,7 @@ export default function ExerciseView({step}: {step: ExerciseStep}) {
 
 			{lastResult === 'correct' && (
 				<Box marginTop={1}>
-					<Text color="green" bold>✅ 太棒了！代码没有任何类型错误。</Text>
+					<Text color="green" bold>{i18n.exercise.tscSuccess}</Text>
 					<Box marginTop={1}>
 						<Text dimColor>按 → 进入下一步</Text>
 					</Box>

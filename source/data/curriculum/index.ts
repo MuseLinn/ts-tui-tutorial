@@ -26,3 +26,14 @@ export const curriculum: Lesson[] = [
 	lesson11AnyVsUnknown,
 	lesson12Stage1Review,
 ];
+
+const validIds = new Set(curriculum.map(l => l.id));
+for (const lesson of curriculum) {
+	for (const prereq of lesson.prerequisites) {
+		if (!validIds.has(prereq)) {
+			throw new Error(
+				`Curriculum validation failed: lesson "${lesson.id}" has prerequisite "${prereq}" which does not exist in the curriculum.`,
+			);
+		}
+	}
+}
