@@ -64,9 +64,9 @@ export default function Layout() {
 	return (
 		<Box flexDirection="column" height="100%">
 			<Header />
-			<Box flexGrow={1} flexDirection="row">
+			<Box flexGrow={1} flexDirection="row" overflow="hidden">
 				<Sidebar />
-				<Box flexGrow={1} flexDirection="column" paddingX={2}>
+				<Box flexGrow={1} flexDirection="column" paddingX={2} overflow="hidden">
 					{step?.type === 'theory' && currentView === 'theory' && (
 						<TheoryView step={step} />
 					)}
