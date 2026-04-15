@@ -24,6 +24,7 @@ const baseState = (overrides: Partial<AppState> = {}): AppState => ({
 	currentLessonId: 'lesson-1',
 	currentStepIndex: 0,
 	currentView: 'theory',
+	stageStatus: 'intro',
 	userCode: '',
 	selectedQuizOptions: [],
 	showHint: false,
@@ -98,28 +99,27 @@ describe('appReducer', () => {
 		expect(state.lastResult).toBe('idle');
 	});
 
-	it('NEXT_STEP advances within bounds', () => {
-		const state = appReducer(baseState(), {type: 'NEXT_STEP'});
+	it('ADVANCE_STAGE moves from intro to demo', () => {
+		const state = appReducer(baseState(), {type: 'ADVANCE_STAGE'});
+		expect(state.stageStatus).toBe('demo');
 		expect(state.currentStepIndex).toBe(1);
 		expect(state.currentView).toBe('code-demo');
 	});
 
-	it('NEXT_STEP does not exceed last step', () => {
-		let state = baseState();
-		state = appReducer(state, {type: 'NEXT_STEP'});
-		state = appReducer(state, {type: 'NEXT_STEP'});
-		expect(state.currentStepIndex).toBe(1);
+	it('ADVANCE_STAGE moves from demo to completed when quiz/exercise are missing', () => {
+		const lessons = [mockLesson({steps: [{type: 'theory', content: 'X'}, {type: 'code-demo', code: '', explanation: 'Y'}]})];
+		const state = appReducer(baseState({lessons, stageStatus: 'demo', currentStepIndex: 1}), {type: 'ADVANCE_STAGE'});
+		expect(state.stageStatus).toBe('completed');
 	});
 
-	it('PREV_STEP goes back within bounds', () => {
-		let state = baseState({currentStepIndex: 1});
-		state = appReducer(state, {type: 'PREV_STEP'});
-		expect(state.currentStepIndex).toBe(0);
-	});
-
-	it('PREV_STEP does not go below 0', () => {
-		const state = appReducer(baseState(), {type: 'PREV_STEP'});
-		expect(state.currentStepIndex).toBe(0);
+	it('ADVANCE_STAGE resets transient state', () => {
+		const state = appReducer(
+			baseState({userCode: 'foo', showHint: true, hintIndex: 2, diagnostics: [{line: 1, column: 1, message: 'err', code: 1}], lastResult: 'correct'}),
+			{type: 'ADVANCE_STAGE'},
+		);
+		expect(state.lastResult).toBe('idle');
+		expect(state.showHint).toBe(false);
+		expect(state.diagnostics).toEqual([]);
 	});
 
 	it('SET_USER_CODE updates code', () => {
@@ -154,12 +154,12 @@ describe('appReducer', () => {
 	});
 
 	it('SET_RESULT increments exerciseAttempts on incorrect exercise', () => {
-		const state = appReducer(baseState({currentView: 'exercise', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
+		const state = appReducer(baseState({stageStatus: 'practice', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
 		expect(state.exerciseAttempts).toBe(3);
 	});
 
 	it('SET_RESULT does not increment exerciseAttempts on incorrect quiz', () => {
-		const state = appReducer(baseState({currentView: 'quiz', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
+		const state = appReducer(baseState({stageStatus: 'quiz', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
 		expect(state.exerciseAttempts).toBe(2);
 	});
 

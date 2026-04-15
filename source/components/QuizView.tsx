@@ -64,9 +64,6 @@ export default function QuizView({step}: {step: QuizStep}) {
 						{lastResult === 'correct' ? '✅ 回答正确！' : '❌ 回答错误'}
 					</Text>
 					<Text dimColor>{selectedOption.explanation}</Text>
-					<Box marginTop={1}>
-						<Text dimColor>按 → 进入下一步</Text>
-					</Box>
 				</Box>
 			)}
 		</Box>

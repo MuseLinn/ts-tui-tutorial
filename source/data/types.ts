@@ -107,11 +107,13 @@ export interface Diagnostic {
 }
 
 export type ViewType = 'theory' | 'code-demo' | 'quiz' | 'exercise';
+export type StageStatus = 'intro' | 'demo' | 'quiz' | 'practice' | 'completed';
 
 export interface AppState {
 	currentLessonId: string;
 	currentStepIndex: number;
 	currentView: ViewType;
+	stageStatus: StageStatus;
 	userCode: string;
 	selectedQuizOptions: string[];
 	showHint: boolean;
@@ -128,8 +130,7 @@ export interface AppState {
 export type AppAction =
 	| { type: 'INIT'; payload: { progress: UserProgress; lessons: Lesson[] } }
 	| { type: 'SET_LESSON'; payload: string }
-	| { type: 'NEXT_STEP' }
-	| { type: 'PREV_STEP' }
+	| { type: 'ADVANCE_STAGE' }
 	| { type: 'SET_USER_CODE'; payload: string }
 	| { type: 'SET_QUIZ_SELECTION'; payload: string[] }
 	| { type: 'TOGGLE_HINT' }

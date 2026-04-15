@@ -10,6 +10,12 @@ import {
 import type {AppState, AppAction, Lesson, UserProgress, LessonStep} from '../data/types.js';
 import {loadProgress, saveProgress, createDefaultProgress} from '../services/ProgressRepo.js';
 import {CONFIG} from '../config.js';
+import {
+	getViewForStage,
+	getStepIndexForStage,
+	deriveStageStatus,
+	nextStageStatus,
+} from '../engine/StageEngine.js';
 
 export function getViewFromStep(step: LessonStep | undefined): AppState['currentView'] {
 	if (!step) return 'theory';
@@ -45,63 +51,72 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 			const progress = action.payload.progress;
 			const lessonId = progress.currentLessonId || firstLessonId;
 			const lesson = action.payload.lessons.find(l => l.id === lessonId) ?? action.payload.lessons[0];
-			const step = lesson?.steps[progress.currentStepIndex] ?? lesson?.steps[0];
+			const isCompleted = !!progress.completedLessons[lessonId];
+			const savedStepIndex = progress.currentLessonId === lessonId ? progress.currentStepIndex : 0;
+			const stageStatus = lesson ? deriveStageStatus(lesson, savedStepIndex, isCompleted) : 'intro';
+			const stepIndex = lesson ? getStepIndexForStage(lesson, stageStatus) : 0;
+			const step = lesson?.steps[stepIndex] ?? lesson?.steps[0];
 
 			return {
 				...state,
 				lessons: action.payload.lessons,
 				progress,
 				currentLessonId: lessonId,
-				currentStepIndex: progress.currentStepIndex,
-				currentView: getViewFromStep(step),
-				userCode:
-					step?.type === 'exercise'
-						? step.initialCode
-						: '',
+				currentStepIndex: stepIndex,
+				currentView: getViewForStage(stageStatus),
+				stageStatus,
+				userCode: step?.type === 'exercise' ? step.initialCode : '',
 				isInitialized: true,
+				selectedQuizOptions: [],
+				showHint: false,
+				hintIndex: 0,
+				exerciseAttempts: 0,
+				diagnostics: [],
+				lastResult: 'idle',
 			};
 		}
 
 		case 'SET_LESSON': {
 			const lesson = state.lessons.find(l => l.id === action.payload);
 			if (!lesson) return state;
-			const step = lesson.steps[0];
+			const isCompleted = !!state.progress.completedLessons[action.payload];
+			const savedStepIndex = state.progress.currentLessonId === action.payload ? state.progress.currentStepIndex : 0;
+			const stageStatus = deriveStageStatus(lesson, savedStepIndex, isCompleted);
+			const stepIndex = getStepIndexForStage(lesson, stageStatus);
+			const step = lesson.steps[stepIndex];
 			return {
 				...state,
 				currentLessonId: action.payload,
-				currentStepIndex: 0,
-				...createStepTransitionState(state, step),
-				userCode:
-					step?.type === 'exercise'
-						? step.initialCode
-						: '',
+				currentStepIndex: stepIndex,
+				currentView: getViewForStage(stageStatus),
+				stageStatus,
+				userCode: step?.type === 'exercise' ? step.initialCode : '',
+				selectedQuizOptions: [],
+				showHint: false,
+				hintIndex: 0,
+				exerciseAttempts: 0,
+				diagnostics: [],
+				lastResult: 'idle',
 			};
 		}
 
-		case 'NEXT_STEP': {
+		case 'ADVANCE_STAGE': {
 			const lesson = state.lessons.find(l => l.id === state.currentLessonId);
 			if (!lesson) return state;
-			const nextIndex = Math.min(
-				state.currentStepIndex + 1,
-				lesson.steps.length - 1,
-			);
-			const step = lesson.steps[nextIndex];
+			const nextStage = nextStageStatus(lesson, state.stageStatus);
+			const stepIndex = getStepIndexForStage(lesson, nextStage);
+			const step = lesson.steps[stepIndex];
 			return {
 				...state,
-				currentStepIndex: nextIndex,
-				...createStepTransitionState(state, step),
-			};
-		}
-
-		case 'PREV_STEP': {
-			const lesson = state.lessons.find(l => l.id === state.currentLessonId);
-			if (!lesson) return state;
-			const prevIndex = Math.max(state.currentStepIndex - 1, 0);
-			const step = lesson.steps[prevIndex];
-			return {
-				...state,
-				currentStepIndex: prevIndex,
-				...createStepTransitionState(state, step),
+				stageStatus: nextStage,
+				currentStepIndex: stepIndex,
+				currentView: getViewForStage(nextStage),
+				userCode: step?.type === 'exercise' ? step.initialCode : '',
+				selectedQuizOptions: [],
+				showHint: false,
+				hintIndex: 0,
+				diagnostics: [],
+				lastResult: 'idle',
 			};
 		}
 
@@ -125,7 +140,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 				...state,
 				lastResult: action.payload,
 				exerciseAttempts:
-					action.payload === 'incorrect' && state.currentView === 'exercise'
+					action.payload === 'incorrect' && state.stageStatus === 'practice'
 						? state.exerciseAttempts + 1
 						: state.exerciseAttempts,
 			};
@@ -186,6 +201,7 @@ export function AppProvider({
 		currentLessonId: '',
 		currentStepIndex: 0,
 		currentView: 'theory',
+		stageStatus: 'intro',
 		userCode: '',
 		selectedQuizOptions: [],
 		showHint: false,

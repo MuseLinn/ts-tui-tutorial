@@ -53,18 +53,18 @@ describe('Layout', () => {
 
 	it('shows loading state before initialization', async () => {
 		const {lastFrame} = renderWithApp([mockLesson()]);
-		// Immediately after render, isInitialized is false
 		expect(lastFrame()).toContain('TS Tutor');
 		expect(lastFrame()).toContain('正在加载');
 	});
 
-	it('renders header and sidebar after init', async () => {
+	it('renders header, tutor banner, and sidebar after init', async () => {
 		const {lastFrame} = renderWithApp([mockLesson()]);
 		await delay(100);
 		const frame = lastFrame();
 		expect(frame).toContain('TS Tutor');
 		expect(frame).toContain('课程导航');
 		expect(frame).toContain('Hello world');
+		expect(frame).toContain('📖 Lesson 1');
 	});
 
 	it('toggles help overlay with ? key', async () => {
@@ -78,25 +78,35 @@ describe('Layout', () => {
 		expect(lastFrame()).not.toContain('快捷键帮助');
 	});
 
-	it('switches views with right arrow', async () => {
+	it('advances stage with Enter key', async () => {
 		const {stdin, lastFrame} = renderWithApp([mockLesson()]);
 		await delay(100);
-		// Starts at theory
+		// Starts at intro (theory)
 		expect(lastFrame()).toContain('Hello world');
-		// Move to code-demo
-		stdin.write('\u001b[C');
-		await delay(50);
+		expect(lastFrame()).toContain('📖 Lesson 1');
+		// Advance to demo
+		stdin.write('\r');
+		await delay(100);
 		expect(lastFrame()).toContain('const x = 1;');
+		expect(lastFrame()).toContain('💡');
 	});
 
-	it('goes back with left arrow', async () => {
+	it('advances through quiz to practice with Enter on correct quiz', async () => {
 		const {stdin, lastFrame} = renderWithApp([mockLesson()]);
 		await delay(100);
-		// Move to code-demo then back to theory
-		stdin.write('\u001b[C');
+		// Advance to demo
+		stdin.write('\r');
 		await delay(50);
-		stdin.write('\u001b[D');
-		await delay(50);
-		expect(lastFrame()).toContain('Hello world');
+		// Advance to quiz
+		stdin.write('\r');
+		await delay(100);
+		expect(lastFrame()).toContain('Q1');
+		// Select correct quiz option (a)
+		stdin.write('\r');
+		await delay(100);
+		expect(lastFrame()).toContain('✅ 回答正确');
+		// Wait for auto-advance
+		await delay(1500);
+		expect(lastFrame()).toContain('Fix it.');
 	});
 });

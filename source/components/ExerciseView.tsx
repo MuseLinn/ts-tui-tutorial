@@ -76,9 +76,6 @@ export default function ExerciseView({step}: {step: ExerciseStep}) {
 			{lastResult === 'correct' && (
 				<Box marginTop={1}>
 					<Text color="green" bold>{i18n.exercise.tscSuccess}</Text>
-					<Box marginTop={1}>
-						<Text dimColor>按 → 进入下一步</Text>
-					</Box>
 				</Box>
 			)}
 

@@ -10,12 +10,14 @@ import CodeView from './CodeView.js';
 import QuizView from './QuizView.js';
 import ExerciseView from './ExerciseView.js';
 import HelpOverlay from './HelpOverlay.js';
-import {buildLessonCompletion} from '../engine/LessonEngine.js';
+import TutorBanner from './TutorBanner.js';
+import {buildLessonCompletion, isLessonUnlocked} from '../engine/LessonEngine.js';
+import {canAdvanceStage, getTutorMessage} from '../engine/StageEngine.js';
 import type {StepResult} from '../data/types.js';
 
 export default function Layout() {
 	const {state, dispatch} = useApp();
-	const {lessons, currentLessonId, currentStepIndex, currentView, isInitialized} =
+	const {lessons, currentLessonId, currentStepIndex, currentView, stageStatus, isInitialized, lastResult} =
 		state;
 	const [showHelp, setShowHelp] = useState(false);
 	const {exit} = useInkApp();
@@ -24,6 +26,23 @@ export default function Layout() {
 	const step = lesson?.steps[currentStepIndex];
 
 	useAutoCompleteLesson();
+
+	// Auto-advance on quiz/exercise success after a brief delay
+	useEffect(() => {
+		let t: ReturnType<typeof setTimeout> | undefined;
+		if (
+			(stageStatus === 'quiz' || stageStatus === 'practice') &&
+			lastResult === 'correct'
+		) {
+			t = setTimeout(() => {
+				dispatch({type: 'ADVANCE_STAGE'});
+			}, 1200);
+		}
+
+		return () => {
+			if (t) clearTimeout(t);
+		};
+	}, [stageStatus, lastResult, dispatch]);
 
 	useInput((input, key) => {
 		if (input === 'q') {
@@ -38,12 +57,29 @@ export default function Layout() {
 
 		if (showHelp) return;
 
-		if (key.leftArrow) {
-			dispatch({type: 'PREV_STEP'});
-		}
+		if (key.return) {
+			if (stageStatus === 'completed') {
+				const currentIdx = lessons.findIndex(l => l.id === currentLessonId);
+				for (let i = currentIdx + 1; i < lessons.length; i++) {
+					const nextLesson = lessons[i]!;
+					if (isLessonUnlocked(nextLesson, state.progress)) {
+						dispatch({type: 'SET_LESSON', payload: nextLesson.id});
+						return;
+					}
+				}
 
-		if (key.rightArrow) {
-			dispatch({type: 'NEXT_STEP'});
+				return;
+			}
+
+			if (stageStatus === 'quiz' && lastResult === 'incorrect') {
+				dispatch({type: 'SET_RESULT', payload: 'idle'});
+				dispatch({type: 'SET_QUIZ_SELECTION', payload: []});
+				return;
+			}
+
+			if (canAdvanceStage(stageStatus, lastResult)) {
+				dispatch({type: 'ADVANCE_STAGE'});
+			}
 		}
 	});
 
@@ -56,27 +92,39 @@ export default function Layout() {
 		);
 	}
 
+	const tutorMessage = lesson
+		? getTutorMessage(stageStatus, lesson.title, lastResult)
+		: '';
+
 	return (
 		<Box flexDirection="column" height="100%">
 			<Header />
+			<TutorBanner message={tutorMessage} stage={stageStatus} />
 			<Box flexGrow={1} flexDirection="row" overflow="hidden">
 				<Sidebar showHelp={showHelp} />
 				<Box flexGrow={1} flexDirection="column" paddingX={2} overflow="hidden">
-					{step?.type === 'theory' && currentView === 'theory' && (
+					{stageStatus === 'completed' && (
+						<Box flexDirection="column" alignItems="center" justifyContent="center" flexGrow={1}>
+							<Text bold color="green">🎉 课程完成！</Text>
+							<Box height={1} />
+							<Text dimColor>按 Enter 继续下一课</Text>
+						</Box>
+					)}
+					{stageStatus !== 'completed' && step?.type === 'theory' && currentView === 'theory' && (
 						<TheoryView step={step} />
 					)}
-					{step?.type === 'code-demo' && currentView === 'code-demo' && (
+					{stageStatus !== 'completed' && step?.type === 'code-demo' && currentView === 'code-demo' && (
 						<CodeView step={step} />
 					)}
-					{step?.type === 'quiz' && currentView === 'quiz' && (
+					{stageStatus !== 'completed' && step?.type === 'quiz' && currentView === 'quiz' && (
 						<QuizView step={step} />
 					)}
-					{step?.type === 'exercise' && currentView === 'exercise' && (
+					{stageStatus !== 'completed' && step?.type === 'exercise' && currentView === 'exercise' && (
 						<ExerciseView step={step} />
 					)}
 				</Box>
 			</Box>
-			<Footer view={currentView} />
+			<Footer stageStatus={stageStatus} lastResult={lastResult} />
 			{showHelp && <HelpOverlay />}
 		</Box>
 	);
@@ -84,21 +132,20 @@ export default function Layout() {
 
 function useAutoCompleteLesson() {
 	const {state, dispatch} = useApp();
-	const {currentLessonId, currentStepIndex, lastResult, progress, lessons, hintIndex, exerciseAttempts} = state;
+	const {currentLessonId, progress, lessons, hintIndex, exerciseAttempts, stageStatus} = state;
 	const lesson = lessons.find(l => l.id === currentLessonId);
 
 	useEffect(() => {
 		if (
 			lesson &&
-			currentStepIndex >= lesson.steps.length - 1 &&
-			lastResult === 'correct' &&
+			stageStatus === 'completed' &&
 			!progress.completedLessons[lesson.id]
 		) {
 			const stepResults: StepResult[] = lesson.steps.map((_step, idx) => ({
 				stepIndex: idx,
-				isCorrect: idx === currentStepIndex,
-				attempts: idx === currentStepIndex ? Math.max(1, exerciseAttempts + 1) : 1,
-				hintsUsed: idx === currentStepIndex ? hintIndex : 0,
+				isCorrect: true,
+				attempts: idx === lesson.steps.length - 1 ? Math.max(1, exerciseAttempts + 1) : 1,
+				hintsUsed: idx === lesson.steps.length - 1 ? hintIndex : 0,
 			}));
 			const completion = buildLessonCompletion(
 				lesson,
@@ -108,5 +155,5 @@ function useAutoCompleteLesson() {
 			);
 			dispatch({type: 'COMPLETE_LESSON', payload: completion});
 		}
-	}, [lesson, currentStepIndex, lastResult, progress.completedLessons, hintIndex, exerciseAttempts, dispatch]);
+	}, [lesson, stageStatus, progress.completedLessons, hintIndex, exerciseAttempts, dispatch]);
 }
