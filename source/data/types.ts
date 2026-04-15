@@ -116,6 +116,7 @@ export interface AppState {
 	selectedQuizOptions: string[];
 	showHint: boolean;
 	hintIndex: number;
+	exerciseAttempts: number;
 	diagnostics: Diagnostic[];
 	lastResult: 'idle' | 'correct' | 'incorrect';
 	progress: UserProgress;
@@ -129,7 +130,6 @@ export type AppAction =
 	| { type: 'SET_LESSON'; payload: string }
 	| { type: 'NEXT_STEP' }
 	| { type: 'PREV_STEP' }
-	| { type: 'SET_VIEW'; payload: ViewType }
 	| { type: 'SET_USER_CODE'; payload: string }
 	| { type: 'SET_QUIZ_SELECTION'; payload: string[] }
 	| { type: 'TOGGLE_HINT' }

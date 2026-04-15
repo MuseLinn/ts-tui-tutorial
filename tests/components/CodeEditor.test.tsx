@@ -53,9 +53,9 @@ describe('CodeEditor', () => {
 		expect(onChange).toHaveBeenCalledWith('    ');
 	});
 
-	it('calls onSubmit when pressing return', async () => {
+	it('inserts newline on plain return without calling onSubmit', async () => {
 		const onSubmit = vi.fn();
-		const {stdin} = render(
+		const {stdin, lastFrame} = render(
 			React.createElement(StatefulEditor, {
 				initialCode: '',
 				onSubmit,
@@ -66,24 +66,27 @@ describe('CodeEditor', () => {
 		await delay(100);
 		stdin.write('\r');
 		await delay(100);
-		expect(onSubmit).toHaveBeenCalledWith('a\n');
+		expect(lastFrame()).toContain('a\n');
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
 	it('handles backspace by removing previous character', async () => {
 		const {stdin, lastFrame} = render(
-			React.createElement(StatefulEditor, {initialCode: 'ab'}),
+			React.createElement(StatefulEditor, {initialCode: 'a'}),
 		);
 		await delay(100);
-		// Move cursor to end (right twice)
-		stdin.write('\u001b[C');
-		await delay(50);
-		stdin.write('\u001b[C');
-		await delay(50);
-		stdin.write('\u007f');
+		// Type 'b' so code becomes 'ab' and cursor moves to 2
+		stdin.write('b');
+		await delay(100);
+		// Backspace (ASCII 8) deletes character before cursor
+		stdin.write('\b');
 		await delay(100);
 		expect(lastFrame()).toContain('a');
 		expect(lastFrame()).not.toContain('ab');
 	});
+
+
+
 
 	it('supports arrow key navigation', async () => {
 		const {stdin, lastFrame} = render(

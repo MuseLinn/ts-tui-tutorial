@@ -1,4 +1,4 @@
-import {useState, useCallback, useMemo} from 'react';
+import {useState, useCallback, useMemo, useEffect} from 'react';
 import {Box, Text, useInput} from 'ink';
 
 export interface CodeEditorProps {
@@ -46,8 +46,12 @@ export default function CodeEditor({
 	focus = true,
 	onSubmit,
 }: CodeEditorProps) {
-	const [cursorIndex, setCursorIndex] = useState(0);
+	const [cursorIndex, setCursorIndex] = useState(code.length);
 	const [scrollOffset, setScrollOffset] = useState(0);
+
+	useEffect(() => {
+		setCursorIndex(prev => Math.min(prev, code.length));
+	}, [code]);
 
 	const lines = useMemo(() => code.split('\n'), [code]);
 	const {line: cursorLine, column: cursorColumn} = useMemo(
@@ -104,7 +108,7 @@ export default function CodeEditor({
 				return;
 			}
 
-			if (key.backspace || key.delete) {
+			if (key.backspace) {
 				if (cursorIndex > 0) {
 					const newCode = code.slice(0, cursorIndex - 1) + code.slice(cursorIndex);
 					onChange(newCode);
@@ -113,11 +117,24 @@ export default function CodeEditor({
 				return;
 			}
 
+			if (key.delete) {
+				if (cursorIndex < code.length) {
+					const newCode = code.slice(0, cursorIndex) + code.slice(cursorIndex + 1);
+					onChange(newCode);
+					updateCursorAndScroll(cursorIndex, newCode);
+				}
+				return;
+			}
+
+			if (key.return && (key.ctrl || key.meta)) {
+				onSubmit?.(code);
+				return;
+			}
+
 			if (key.return) {
 				const newCode = code.slice(0, cursorIndex) + '\n' + code.slice(cursorIndex);
 				onChange(newCode);
 				updateCursorAndScroll(cursorIndex + 1, newCode);
-				onSubmit?.(newCode);
 				return;
 			}
 

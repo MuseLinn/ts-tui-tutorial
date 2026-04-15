@@ -1,6 +1,18 @@
 import ts from 'typescript';
 import type {Diagnostic} from '../data/types.js';
 
+function shallowEqualOptions(a: ts.CompilerOptions, b: ts.CompilerOptions): boolean {
+	const keysA = Object.keys(a);
+	const keysB = Object.keys(b);
+	if (keysA.length !== keysB.length) return false;
+	for (const key of keysA) {
+		if ((a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export class TscService {
 	private defaultOptions: ts.CompilerOptions = {
 		target: ts.ScriptTarget.ES2022,
@@ -9,6 +21,7 @@ export class TscService {
 		noEmit: true,
 		skipLibCheck: true,
 		esModuleInterop: true,
+		lib: ['lib.es2022.d.ts', 'lib.dom.d.ts'],
 	};
 
 	private lastCode?: string;
@@ -23,7 +36,7 @@ export class TscService {
 			this.lastCode === code &&
 			this.cachedProgram &&
 			this.cachedOptions &&
-			JSON.stringify(this.cachedOptions) === JSON.stringify(options)
+			shallowEqualOptions(this.cachedOptions, options)
 		) {
 			const diagnostics = ts.getPreEmitDiagnostics(this.cachedProgram);
 			return diagnostics.map(d => this.friendlyDiagnostic(d));

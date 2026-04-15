@@ -1,6 +1,6 @@
 
 import {useEffect, useState} from 'react';
-import {Box, useInput, Text} from 'ink';
+import {Box, useInput, Text, useApp as useInkApp} from 'ink';
 import {useApp} from '../context/AppContext.js';
 import Header from './Header.js';
 import Footer from './Footer.js';
@@ -11,12 +11,14 @@ import QuizView from './QuizView.js';
 import ExerciseView from './ExerciseView.js';
 import HelpOverlay from './HelpOverlay.js';
 import {buildLessonCompletion} from '../engine/LessonEngine.js';
+import type {StepResult} from '../data/types.js';
 
 export default function Layout() {
 	const {state, dispatch} = useApp();
 	const {lessons, currentLessonId, currentStepIndex, currentView, isInitialized} =
 		state;
 	const [showHelp, setShowHelp] = useState(false);
+	const {exit} = useInkApp();
 
 	const lesson = lessons.find(l => l.id === currentLessonId);
 	const step = lesson?.steps[currentStepIndex];
@@ -25,7 +27,8 @@ export default function Layout() {
 
 	useInput((input, key) => {
 		if (input === 'q') {
-			process.exit(0);
+			exit();
+			return;
 		}
 
 		if (input === '?') {
@@ -57,7 +60,7 @@ export default function Layout() {
 		<Box flexDirection="column" height="100%">
 			<Header />
 			<Box flexGrow={1} flexDirection="row" overflow="hidden">
-				<Sidebar />
+				<Sidebar showHelp={showHelp} />
 				<Box flexGrow={1} flexDirection="column" paddingX={2} overflow="hidden">
 					{step?.type === 'theory' && currentView === 'theory' && (
 						<TheoryView step={step} />
@@ -81,7 +84,7 @@ export default function Layout() {
 
 function useAutoCompleteLesson() {
 	const {state, dispatch} = useApp();
-	const {currentLessonId, currentStepIndex, lastResult, progress, lessons} = state;
+	const {currentLessonId, currentStepIndex, lastResult, progress, lessons, hintIndex, exerciseAttempts} = state;
 	const lesson = lessons.find(l => l.id === currentLessonId);
 
 	useEffect(() => {
@@ -91,13 +94,19 @@ function useAutoCompleteLesson() {
 			lastResult === 'correct' &&
 			!progress.completedLessons[lesson.id]
 		) {
+			const stepResults: StepResult[] = lesson.steps.map((_step, idx) => ({
+				stepIndex: idx,
+				isCorrect: idx === currentStepIndex,
+				attempts: idx === currentStepIndex ? Math.max(1, exerciseAttempts + 1) : 1,
+				hintsUsed: idx === currentStepIndex ? hintIndex : 0,
+			}));
 			const completion = buildLessonCompletion(
 				lesson,
-				[],
-				state.hintIndex,
-				1,
+				stepResults,
+				hintIndex,
+				Math.max(1, exerciseAttempts + 1),
 			);
 			dispatch({type: 'COMPLETE_LESSON', payload: completion});
 		}
-	}, [lesson, currentStepIndex, lastResult, progress.completedLessons, state.hintIndex, dispatch]);
+	}, [lesson, currentStepIndex, lastResult, progress.completedLessons, hintIndex, exerciseAttempts, dispatch]);
 }

@@ -18,14 +18,13 @@ export function validateExercise(
 	switch (step.validationMode) {
 		case 'tsc': {
 			const diagnostics = tscService.check(userCode, step.compilerOptions);
-			const typeErrors = diagnostics.filter(d => d.code !== 2304); // ignore "cannot find name console"
 			return {
-				passed: typeErrors.length === 0,
+				passed: diagnostics.length === 0,
 				diagnostics,
 				message:
-					typeErrors.length === 0
+					diagnostics.length === 0
 						? i18n.exercise.tscSuccess
-						: i18n.exercise.tscFailure(typeErrors.length),
+						: i18n.exercise.tscFailure(diagnostics.length),
 			};
 		}
 

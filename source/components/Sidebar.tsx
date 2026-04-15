@@ -2,18 +2,18 @@
 import {Box, Text, useInput} from 'ink';
 import {useApp} from '../context/AppContext.js';
 import {isLessonUnlocked} from '../engine/LessonEngine.js';
-import type {Lesson} from '../data/types.js';
 
-export default function Sidebar() {
+export default function Sidebar({showHelp}: {showHelp: boolean}) {
 	const {state, dispatch} = useApp();
 	const {lessons, progress, currentLessonId} = state;
 
 	useInput((input, key) => {
-		const currentIndex = lessons.findIndex((l: Lesson) => l.id === currentLessonId);
+		if (showHelp) return;
+		const currentIndex = lessons.findIndex(l => l.id === currentLessonId);
 		if (key.upArrow || input === 'k') {
 			for (let i = currentIndex - 1; i >= 0; i--) {
-				if (isLessonUnlocked(lessons[i] as Lesson, progress)) {
-					dispatch({type: 'SET_LESSON', payload: (lessons[i] as Lesson).id});
+				if (isLessonUnlocked(lessons[i]!, progress)) {
+					dispatch({type: 'SET_LESSON', payload: lessons[i]!.id});
 					break;
 				}
 			}
@@ -21,8 +21,8 @@ export default function Sidebar() {
 
 		if (key.downArrow || input === 'j') {
 			for (let i = currentIndex + 1; i < lessons.length; i++) {
-				if (isLessonUnlocked(lessons[i] as Lesson, progress)) {
-					dispatch({type: 'SET_LESSON', payload: (lessons[i] as Lesson).id});
+				if (isLessonUnlocked(lessons[i]!, progress)) {
+					dispatch({type: 'SET_LESSON', payload: lessons[i]!.id});
 					break;
 				}
 			}
@@ -42,7 +42,7 @@ export default function Sidebar() {
 		>
 			<Text bold underline>课程导航</Text>
 			<Box height={1} />
-			{lessons.map((lesson: Lesson, idx: number) => {
+			{lessons.map((lesson, idx) => {
 				const isCompleted = progress.completedLessons[lesson.id];
 				const isActive = lesson.id === currentLessonId;
 				const unlocked = isLessonUnlocked(lesson, progress);

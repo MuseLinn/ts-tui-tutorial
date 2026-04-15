@@ -3,6 +3,7 @@ import {
 	useContext,
 	useReducer,
 	useEffect,
+	useRef,
 	type ReactNode,
 	type Dispatch,
 } from 'react';
@@ -31,6 +32,7 @@ export function createStepTransitionState(
 		selectedQuizOptions: [],
 		showHint: false,
 		hintIndex: 0,
+		exerciseAttempts: 0,
 		diagnostics: [],
 		lastResult: 'idle',
 	};
@@ -103,19 +105,6 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 			};
 		}
 
-		case 'SET_VIEW': {
-			const lesson = state.lessons.find(l => l.id === state.currentLessonId);
-			const step = lesson?.steps[state.currentStepIndex];
-			return {
-				...state,
-				currentView: action.payload,
-				userCode:
-					step?.type === 'exercise'
-						? step.initialCode
-						: state.userCode,
-			};
-		}
-
 		case 'SET_USER_CODE':
 			return {...state, userCode: action.payload};
 
@@ -132,7 +121,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 			return {...state, diagnostics: action.payload};
 
 		case 'SET_RESULT':
-			return {...state, lastResult: action.payload};
+			return {
+				...state,
+				lastResult: action.payload,
+				exerciseAttempts:
+					action.payload === 'incorrect' && state.currentView === 'exercise'
+						? state.exerciseAttempts + 1
+						: state.exerciseAttempts,
+			};
 
 		case 'SAVE_PROGRESS': {
 			return {...state, progress: action.payload};
@@ -144,6 +140,7 @@ export function appReducer(state: AppState, action: AppAction): AppState {
 				userCode: action.payload,
 				showHint: false,
 				hintIndex: 0,
+				exerciseAttempts: 0,
 				diagnostics: [],
 				lastResult: 'idle',
 			};
@@ -193,6 +190,7 @@ export function AppProvider({
 		selectedQuizOptions: [],
 		showHint: false,
 		hintIndex: 0,
+		exerciseAttempts: 0,
 		diagnostics: [],
 		lastResult: 'idle',
 		progress: createDefaultProgress(lessons),
@@ -206,25 +204,9 @@ export function AppProvider({
 		dispatch({type: 'INIT', payload: {progress, lessons}});
 	}, [lessons]);
 
-	// Save progress immediately when it changes (from reducer actions)
+	// Debounced save on state changes
 	useEffect(() => {
-		const progress: UserProgress = {
-			...state.progress,
-			lastAccessedAt: new Date().toISOString(),
-			currentLessonId: state.currentLessonId,
-			currentStepIndex: state.currentStepIndex,
-		};
-		saveProgress(progress);
-	}, [
-		state.progress.completedLessons,
-		state.progress.globalStats,
-		state.currentLessonId,
-		state.currentStepIndex,
-	]);
-
-	// Auto-save every 30 seconds for transient state (userCode, etc.)
-	useEffect(() => {
-		const id = setInterval(() => {
+		const id = setTimeout(() => {
 			const progress: UserProgress = {
 				...state.progress,
 				lastAccessedAt: new Date().toISOString(),
@@ -232,9 +214,30 @@ export function AppProvider({
 				currentStepIndex: state.currentStepIndex,
 			};
 			saveProgress(progress);
+		}, 500);
+		return () => clearTimeout(id);
+	}, [state]);
+
+	// Stable heartbeat auto-save every 30 seconds
+	const progressRef = useRef(state.progress);
+	progressRef.current = state.progress;
+	const lessonIdRef = useRef(state.currentLessonId);
+	lessonIdRef.current = state.currentLessonId;
+	const stepIndexRef = useRef(state.currentStepIndex);
+	stepIndexRef.current = state.currentStepIndex;
+
+	useEffect(() => {
+		const id = setInterval(() => {
+			const progress: UserProgress = {
+				...progressRef.current,
+				lastAccessedAt: new Date().toISOString(),
+				currentLessonId: lessonIdRef.current,
+				currentStepIndex: stepIndexRef.current,
+			};
+			saveProgress(progress);
 		}, CONFIG.AUTO_SAVE_INTERVAL_MS);
 		return () => clearInterval(id);
-	}, [state.currentLessonId, state.currentStepIndex, state.progress]);
+	}, []);
 
 	return (
 		<AppContext.Provider value={{state, dispatch}}>

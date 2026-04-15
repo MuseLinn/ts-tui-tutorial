@@ -1,4 +1,3 @@
-import React from 'react';
 import {Box, Text} from 'ink';
 import {i18n} from '../i18n/zh-CN.js';
 
@@ -22,13 +21,14 @@ export default function HelpOverlay() {
 				<KeyLine keys={help.keys.upDown} desc={help.keys.lessonSwitch} />
 				<KeyLine keys={help.keys.leftRight} desc={help.keys.stepSwitch} />
 				<KeyLine keys={help.keys.enter} desc={help.keys.confirm} />
+				<KeyLine keys={help.keys.ctrlEnter} desc={help.keys.submitExercise} />
 				<KeyLine keys={help.keys.q} desc={help.keys.quit} />
 			</Section>
 
 			<Section title={help.exerciseMode}>
 				<KeyLine keys={help.keys.tab} desc={help.keys.indent} />
-				<KeyLine keys={help.keys.h} desc={help.keys.hint} />
-				<KeyLine keys={help.keys.r} desc={help.keys.reset} />
+				<KeyLine keys={help.keys.ctrlH} desc={help.keys.hint} />
+				<KeyLine keys={help.keys.ctrlR} desc={help.keys.reset} />
 			</Section>
 
 			<Box marginTop={2}>

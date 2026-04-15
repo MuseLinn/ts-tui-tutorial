@@ -28,6 +28,7 @@ const baseState = (overrides: Partial<AppState> = {}): AppState => ({
 	selectedQuizOptions: [],
 	showHint: false,
 	hintIndex: 0,
+	exerciseAttempts: 0,
 	diagnostics: [],
 	lastResult: 'idle',
 	progress: {
@@ -121,11 +122,6 @@ describe('appReducer', () => {
 		expect(state.currentStepIndex).toBe(0);
 	});
 
-	it('SET_VIEW updates view', () => {
-		const state = appReducer(baseState(), {type: 'SET_VIEW', payload: 'quiz'});
-		expect(state.currentView).toBe('quiz');
-	});
-
 	it('SET_USER_CODE updates code', () => {
 		const state = appReducer(baseState(), {type: 'SET_USER_CODE', payload: 'hello'});
 		expect(state.userCode).toBe('hello');
@@ -157,14 +153,25 @@ describe('appReducer', () => {
 		expect(state.lastResult).toBe('correct');
 	});
 
+	it('SET_RESULT increments exerciseAttempts on incorrect exercise', () => {
+		const state = appReducer(baseState({currentView: 'exercise', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
+		expect(state.exerciseAttempts).toBe(3);
+	});
+
+	it('SET_RESULT does not increment exerciseAttempts on incorrect quiz', () => {
+		const state = appReducer(baseState({currentView: 'quiz', exerciseAttempts: 2}), {type: 'SET_RESULT', payload: 'incorrect'});
+		expect(state.exerciseAttempts).toBe(2);
+	});
+
 	it('RESET_EXERCISE resets exercise state', () => {
 		const state = appReducer(
-			baseState({userCode: 'foo', showHint: true, hintIndex: 1, diagnostics: [{line: 1, column: 1, message: 'err', code: 1}], lastResult: 'correct'}),
+			baseState({userCode: 'foo', showHint: true, hintIndex: 1, exerciseAttempts: 3, diagnostics: [{line: 1, column: 1, message: 'err', code: 1}], lastResult: 'correct'}),
 			{type: 'RESET_EXERCISE', payload: 'bar'},
 		);
 		expect(state.userCode).toBe('bar');
 		expect(state.showHint).toBe(false);
 		expect(state.hintIndex).toBe(0);
+		expect(state.exerciseAttempts).toBe(0);
 		expect(state.diagnostics).toEqual([]);
 		expect(state.lastResult).toBe('idle');
 	});

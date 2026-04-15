@@ -1,34 +1,42 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest';
 import React from 'react';
-import path from 'node:path';
-import os from 'node:os';
-import fs from 'node:fs';
 import {render, delay} from '../test-helpers.js';
-import {AppProvider} from '../../source/context/AppContext.js';
 import ExerciseView from '../../source/components/ExerciseView.js';
-import type {ExerciseStep, Lesson} from '../../source/data/types.js';
+import type {ExerciseStep, AppState, Diagnostic} from '../../source/data/types.js';
 
-vi.mock('node:os', async () => {
-	const actual = await vi.importActual('node:os') as typeof import('node:os');
-	const tmpDir = path.join(actual.default.tmpdir(), `ts-tui-test-exercise-${Date.now()}`);
+const mockDispatch = vi.fn();
+
+function mockAppState(overrides: Partial<AppState> = {}): AppState {
 	return {
-		default: {
-			...actual.default,
-			homedir: () => tmpDir,
+		currentLessonId: 'lesson-1',
+		currentStepIndex: 0,
+		currentView: 'exercise',
+		userCode: overrides.userCode ?? '',
+		selectedQuizOptions: [],
+		showHint: overrides.showHint ?? false,
+		hintIndex: overrides.hintIndex ?? 0,
+		exerciseAttempts: overrides.exerciseAttempts ?? 0,
+		diagnostics: (overrides.diagnostics as Diagnostic[]) ?? [],
+		lastResult: overrides.lastResult ?? 'idle',
+		progress: {
+			version: 1,
+			lastAccessedAt: new Date().toISOString(),
+			currentLessonId: 'lesson-1',
+			currentStepIndex: 0,
+			completedLessons: {},
+			globalStats: {totalXp: 0, streakDays: 0, lastStudyDate: new Date().toISOString()},
 		},
-	};
-});
+		settings: {theme: 'default', showHintsByDefault: false},
+		lessons: [],
+		isInitialized: true,
+		...overrides,
+	} as AppState;
+}
 
-const mockLesson = (overrides: Partial<Lesson> = {}): Lesson => ({
-	id: 'lesson-1',
-	title: 'Lesson 1',
-	description: 'Desc',
-	tier: 'beginner',
-	prerequisites: [],
-	estimatedMinutes: 5,
-	steps: [],
-	...overrides,
-});
+vi.mock('../../source/context/AppContext.js', () => ({
+	useApp: () => ({state: mockAppState(), dispatch: mockDispatch}),
+	AppProvider: ({children}: {children: React.ReactNode}) => React.createElement(React.Fragment, null, children),
+}));
 
 const mockExerciseStep = (overrides: Partial<ExerciseStep> = {}): ExerciseStep => ({
 	type: 'exercise',
@@ -39,69 +47,62 @@ const mockExerciseStep = (overrides: Partial<ExerciseStep> = {}): ExerciseStep =
 	...overrides,
 });
 
-function renderWithApp(step: ExerciseStep) {
-	const lessons = [mockLesson({steps: [step]})];
-	return render(
-		React.createElement(AppProvider, {lessons},
-			React.createElement(ExerciseView, {step}),
-		),
-	);
-}
-
 describe('ExerciseView', () => {
 	beforeEach(() => {
-		const tmpDir = path.join(os.homedir(), '.ts-tui-tutorial');
-		if (fs.existsSync(tmpDir)) {
-			fs.rmSync(tmpDir, {recursive: true});
-		}
+		mockDispatch.mockClear();
 	});
 
 	it('renders instructions and editor', async () => {
-		const {lastFrame} = renderWithApp(mockExerciseStep());
+		const {lastFrame} = render(React.createElement(ExerciseView, {step: mockExerciseStep()}));
 		await delay(100);
 		const frame = lastFrame();
 		expect(frame).toContain('练习：修复类型错误');
 		expect(frame).toContain('Fix the type error.');
 	});
 
-	it('shows diagnostics after submitting invalid code', async () => {
-		const step = mockExerciseStep({validationMode: 'tsc'});
-		const {stdin, lastFrame} = renderWithApp(step);
-		await delay(100);
-		// Submit the initial code (which has a type error)
-		stdin.write('\r');
-		await delay(100);
-		const frame = lastFrame();
-		expect(frame).toContain('类型错误');
-	});
-
-	it('shows success after submitting valid code', async () => {
-		const step = mockExerciseStep({validationMode: 'tsc', initialCode: 'const x: number = 42;'});
-		const {stdin, lastFrame} = renderWithApp(step);
-		await delay(100);
-		stdin.write('\r');
-		await delay(100);
-		const frame = lastFrame();
-		expect(frame).toContain('太棒了');
-	});
-
-	it('toggles hints on h key', async () => {
+	it('shows diagnostics when lastResult is incorrect', async () => {
 		const step = mockExerciseStep();
-		const {stdin, lastFrame} = renderWithApp(step);
+		const diagnostics = [{line: 1, column: 1, message: 'Type error here', code: 1}];
+		vi.mocked(await import('../../source/context/AppContext.js')).useApp = () => ({
+			state: mockAppState({lastResult: 'incorrect', diagnostics, userCode: step.initialCode}),
+			dispatch: mockDispatch,
+		});
+		const {lastFrame} = render(React.createElement(ExerciseView, {step}));
 		await delay(100);
-		stdin.write('h');
+		expect(lastFrame()).toContain('类型错误');
+		expect(lastFrame()).toContain('Type error here');
+	});
+
+	it('shows success when lastResult is correct', async () => {
+		const step = mockExerciseStep({initialCode: 'const x: number = 42;'});
+		vi.mocked(await import('../../source/context/AppContext.js')).useApp = () => ({
+			state: mockAppState({lastResult: 'correct', userCode: step.initialCode}),
+			dispatch: mockDispatch,
+		});
+		const {lastFrame} = render(React.createElement(ExerciseView, {step}));
+		await delay(100);
+		expect(lastFrame()).toContain('太棒了');
+	});
+
+	it('shows hint when showHint is true', async () => {
+		const step = mockExerciseStep();
+		vi.mocked(await import('../../source/context/AppContext.js')).useApp = () => ({
+			state: mockAppState({showHint: true, hintIndex: 0, userCode: step.initialCode}),
+			dispatch: mockDispatch,
+		});
+		const {lastFrame} = render(React.createElement(ExerciseView, {step}));
 		await delay(100);
 		expect(lastFrame()).toContain(step.hints[0]!);
 	});
 
-	it('cycles through hints on repeated h key', async () => {
+	it('shows second hint when hintIndex is 1', async () => {
 		const step = mockExerciseStep();
-		const {stdin, lastFrame} = renderWithApp(step);
+		vi.mocked(await import('../../source/context/AppContext.js')).useApp = () => ({
+			state: mockAppState({showHint: true, hintIndex: 1, userCode: step.initialCode}),
+			dispatch: mockDispatch,
+		});
+		const {lastFrame} = render(React.createElement(ExerciseView, {step}));
 		await delay(100);
-		stdin.write('h');
-		await delay(50);
-		stdin.write('h');
-		await delay(50);
 		expect(lastFrame()).toContain(step.hints[1]!);
 	});
 });

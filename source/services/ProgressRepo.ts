@@ -13,30 +13,30 @@ const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 // ========================================
 
 const StepResultSchema = z.object({
-	stepIndex: z.number(),
+	stepIndex: z.number().nonnegative(),
 	isCorrect: z.boolean(),
-	attempts: z.number(),
-	hintsUsed: z.number(),
+	attempts: z.number().nonnegative(),
+	hintsUsed: z.number().nonnegative(),
 });
 
 const LessonCompletionSchema = z.object({
 	lessonId: z.string(),
 	completedAt: z.string(),
-	score: z.number(),
-	attempts: z.number(),
-	hintsUsed: z.number(),
+	score: z.number().nonnegative().max(100),
+	attempts: z.number().nonnegative(),
+	hintsUsed: z.number().nonnegative(),
 	stepResults: z.array(StepResultSchema),
 });
 
 const UserProgressSchema = z.object({
-	version: z.number(),
+	version: z.number().nonnegative(),
 	lastAccessedAt: z.string(),
 	currentLessonId: z.string(),
-	currentStepIndex: z.number(),
+	currentStepIndex: z.number().nonnegative(),
 	completedLessons: z.record(z.string(), LessonCompletionSchema),
 	globalStats: z.object({
-		totalXp: z.number(),
-		streakDays: z.number(),
+		totalXp: z.number().nonnegative(),
+		streakDays: z.number().nonnegative(),
 		lastStudyDate: z.string(),
 	}),
 });
@@ -77,13 +77,14 @@ function migrateProgress(data: unknown): UserProgress | null {
 		return null;
 	}
 
-	if (version === CURRENT_PROGRESS_VERSION) {
-		return data as UserProgress;
-	}
+		if (version === CURRENT_PROGRESS_VERSION) {
+			const result = UserProgressSchema.safeParse(data);
+			return result.success ? result.data : null;
+		}
 
-	// Version 0 -> 1 migration placeholder
-	// Add future migrations here
-	return null;
+		// Version 0 -> 1 migration placeholder
+		// Add future migrations here
+		return null;
 }
 
 // ========================================
@@ -106,9 +107,13 @@ export function loadProgress(): UserProgress | null {
 }
 
 export function saveProgress(progress: UserProgress): void {
-	ensureDataDir();
-	const validated = UserProgressSchema.parse(progress);
-	writeFileAtomic(PROGRESS_FILE, JSON.stringify(validated, null, 2));
+	try {
+		ensureDataDir();
+		const validated = UserProgressSchema.parse(progress);
+		writeFileAtomic(PROGRESS_FILE, JSON.stringify(validated, null, 2));
+	} catch {
+		// Fail silently to avoid crashing the TUI
+	}
 }
 
 // ========================================
@@ -132,9 +137,13 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(settings: AppSettings): void {
-	ensureDataDir();
-	const validated = AppSettingsSchema.parse(settings);
-	writeFileAtomic(CONFIG_FILE, JSON.stringify(validated, null, 2));
+	try {
+		ensureDataDir();
+		const validated = AppSettingsSchema.parse(settings);
+		writeFileAtomic(CONFIG_FILE, JSON.stringify(validated, null, 2));
+	} catch {
+		// Fail silently to avoid crashing the TUI
+	}
 }
 
 export function defaultSettings(): AppSettings {

@@ -20,17 +20,20 @@ export default function ExerciseView({step}: {step: ExerciseStep}) {
 		});
 	};
 
-	useInput((input, _key) => {
-		if (input === 'h' && lastResult !== 'correct') {
-			if (!showHint) {
-				dispatch({type: 'TOGGLE_HINT'});
-			} else if (hintIndex < step.hints.length - 1) {
-				dispatch({type: 'NEXT_HINT'});
+	useInput((input, key) => {
+		if (lastResult === 'correct') return;
+		if (key.ctrl || key.meta) {
+			if (input === 'h') {
+				if (!showHint) {
+					dispatch({type: 'TOGGLE_HINT'});
+				} else if (hintIndex < step.hints.length - 1) {
+					dispatch({type: 'NEXT_HINT'});
+				}
 			}
-		}
 
-		if (input === 'r') {
-			dispatch({type: 'RESET_EXERCISE', payload: step.initialCode});
+			if (input === 'r') {
+				dispatch({type: 'RESET_EXERCISE', payload: step.initialCode});
+			}
 		}
 	});
 
